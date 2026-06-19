@@ -1,0 +1,14 @@
+{
+    "name": "one2joe/botman-driver-line",
+    "description": "LINE Driver for BotMan",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4",
+        "botman/botman": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "One2Joe\\LineDriver\\": "src/"
+        }
+    }
+}
