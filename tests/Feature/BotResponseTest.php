@@ -8,9 +8,11 @@ use BotMan\BotMan\Messages\Outgoing\Actions\Button;
 use BotMan\BotMan\Messages\Outgoing\Question;
 use BotMan\BotMan\BotMan;
 use BotMan\BotMan\BotManFactory;
+use BotMan\BotMan\Cache\ArrayCache;
 use BotMan\BotMan\Drivers\DriverManager;
 use BotMan\BotMan\Drivers\Tests\FakeDriver;
 use BotMan\BotMan\Drivers\Tests\ProxyDriver;
+use BotMan\BotMan\Interfaces\CacheInterface;
 use BotMan\BotMan\Messages\Incoming\IncomingMessage;
 use org\bovigo\vfs\vfsStream;
 use PHPUnit\Framework\TestCase;
@@ -36,38 +38,43 @@ class BotResponseTest extends TestCase
         ProxyDriver::setInstance($this->fakeDriver);
     }
 
-    protected function createBot(): BotMan
+    protected function createBot(?CacheInterface $cache = null): BotMan
     {
-        $botman = BotManFactory::create([]);
-        $botman->hears('hi', function ($bot) {
+        $botman = BotManFactory::create([], $cache);
+        $this->registerHandlers($botman);
+        return $botman;
+    }
+
+    protected function registerHandlers(BotMan $botman): void
+    {
+        $botman->hears('สวัสดี', function ($bot) {
             $question = Question::create('สวัสดีครับ มีอะไรให้ช่วย?')
-                ->addButton(Button::create('แนะนำตัว')->value('onboard'))
-                ->addButton(Button::create('คำสั่ง')->value('help'))
-                ->addButton(Button::create('ทักทาย')->value('hi'));
+                ->addButton(Button::create('แนะนำตัว')->value('แนะนำตัว'))
+                ->addButton(Button::create('คำสั่ง')->value('ช่วยเหลือ'))
+                ->addButton(Button::create('ทักทาย')->value('สวัสดี'));
             $bot->reply($question);
         });
-        $botman->hears('onboard', function ($bot) {
+        $botman->hears('แนะนำตัว', function ($bot) {
             $bot->startConversation(new OnboardingConversation());
         });
-        $botman->hears('onboarding', function ($bot) {
+        $botman->hears('สอนการใช้งาน', function ($bot) {
             $bot->startConversation(new OnboardingConversation());
         });
         $botman->hears('\[Image\]', function ($bot) {
             $bot->reply('รับรูปภาพแล้ว');
         });
 
-        $botman->hears('help', function ($bot) {
-            $bot->reply("พิมพ์ hi เพื่อทดสอบ, onboard เพื่อเริ่ม onboarding, cancel เพื่อยกเลิก, หรือส่งรูป/โลเคชัน/สติกเกอร์มาได้");
+        $botman->hears('ช่วยเหลือ', function ($bot) {
+            $bot->reply("พิมพ์ สวัสดี เพื่อทดสอบ, แนะนำตัว เพื่อเริ่มสอนการใช้งาน, ยกเลิก เพื่อยกเลิก, หรือส่งรูปภาพ/ตำแหน่งที่ตั้ง/สติกเกอร์มาได้");
         });
         $botman->fallback(function ($bot) {
             $bot->reply('รับข้อความแล้ว: ' . $bot->getMessage()->getText());
         });
-        return $botman;
     }
 
     public function testHiRepliesWithQuickReplyButtons(): void
     {
-        $this->fakeDriver->messages = [new IncomingMessage('hi', 'Utest', 'token')];
+        $this->fakeDriver->messages = [new IncomingMessage('สวัสดี', 'Utest', 'token')];
 
         $this->createBot()->listen();
 
@@ -87,9 +94,9 @@ class BotResponseTest extends TestCase
         $this->assertContains('ทักทาย', $labels);
 
         $values = array_column($buttons, 'value');
-        $this->assertContains('onboard', $values);
-        $this->assertContains('help', $values);
-        $this->assertContains('hi', $values);
+        $this->assertContains('แนะนำตัว', $values);
+        $this->assertContains('ช่วยเหลือ', $values);
+        $this->assertContains('สวัสดี', $values);
     }
 
     public function testUnknownMessageFallsBack(): void
@@ -115,62 +122,147 @@ class BotResponseTest extends TestCase
         $this->assertStringContainsString('รับรูปภาพแล้ว', $messages[0]->getText());
     }
 
-    public function testHelpReplies(): void
+    public function testHiInThai(): void
     {
-        $this->fakeDriver->messages = [new IncomingMessage('help', 'Utest', 'token')];
+        $this->fakeDriver->messages = [new IncomingMessage('สวัสดี', 'Utest', 'token')];
 
         $this->createBot()->listen();
 
         $messages = $this->fakeDriver->getBotMessages();
         $this->assertCount(1, $messages);
-        $this->assertStringContainsString('hi', $messages[0]->getText());
-        $this->assertStringContainsString('onboard', $messages[0]->getText());
+        $this->assertInstanceOf(Question::class, $messages[0]);
+        $this->assertSame('สวัสดีครับ มีอะไรให้ช่วย?', $messages[0]->getText());
+
+        $labels = array_column($messages[0]->getButtons(), 'text');
+        $this->assertContains('แนะนำตัว', $labels);
+        $this->assertContains('คำสั่ง', $labels);
+        $this->assertContains('ทักทาย', $labels);
     }
 
-    public function testOnboardStartsConversation(): void
+    public function testOnboardInThai(): void
     {
-        $this->fakeDriver->messages = [new IncomingMessage('onboard', 'Utest', 'token')];
+        $this->fakeDriver->messages = [new IncomingMessage('แนะนำตัว', 'Utest', 'token')];
 
         $this->createBot()->listen();
 
         $messages = $this->fakeDriver->getBotMessages();
         $this->assertGreaterThanOrEqual(1, count($messages));
-        $this->assertStringContainsString('onboarding', $messages[0]->getText());
+        $this->assertStringContainsString('สอนการใช้งาน', $messages[0]->getText());
     }
 
-    public function testOnboardingStartsConversation(): void
+    public function testOnboardingInThai(): void
     {
-        $this->fakeDriver->messages = [new IncomingMessage('onboarding', 'Utest', 'token')];
+        $this->fakeDriver->messages = [new IncomingMessage('สอนการใช้งาน', 'Utest', 'token')];
 
         $this->createBot()->listen();
 
         $messages = $this->fakeDriver->getBotMessages();
         $this->assertGreaterThanOrEqual(1, count($messages));
-        $this->assertStringContainsString('onboarding', $messages[0]->getText());
+        $this->assertStringContainsString('สอนการใช้งาน', $messages[0]->getText());
     }
 
-    public function testConversationCancelStops(): void
+    public function testHelpInThai(): void
+    {
+        $this->fakeDriver->messages = [new IncomingMessage('ช่วยเหลือ', 'Utest', 'token')];
+
+        $this->createBot()->listen();
+
+        $messages = $this->fakeDriver->getBotMessages();
+        $this->assertCount(1, $messages);
+        $this->assertStringContainsString('สวัสดี', $messages[0]->getText());
+        $this->assertStringContainsString('แนะนำตัว', $messages[0]->getText());
+    }
+
+    public function testConversationCancelInThai(): void
     {
         $this->fakeDriver->messages = [
-            new IncomingMessage('onboard', 'Utest', 'token'),
-            new IncomingMessage('cancel', 'Utest', 'token'),
+            new IncomingMessage('แนะนำตัว', 'Utest', 'token1'),
+            new IncomingMessage('ยกเลิก', 'Utest', 'token2'),
         ];
 
         $this->createBot()->listen();
 
         $messages = $this->fakeDriver->getBotMessages();
         $this->assertGreaterThanOrEqual(1, count($messages));
+        $this->assertStringContainsString('สอนการใช้งาน', $messages[0]->getText());
+        foreach ($messages as $msg) {
+            $this->assertStringNotContainsString('สรุปการสอนการใช้งาน', $msg->getText());
+        }
     }
 
-    public function testConversationAsksForName(): void
+    public function testHelpReplies(): void
     {
-        $this->fakeDriver->messages = [new IncomingMessage('onboarding', 'Utest', 'token')];
+        $this->fakeDriver->messages = [new IncomingMessage('ช่วยเหลือ', 'Utest', 'token')];
 
         $this->createBot()->listen();
 
         $messages = $this->fakeDriver->getBotMessages();
+        $this->assertCount(1, $messages);
+        $this->assertStringContainsString('สวัสดี', $messages[0]->getText());
+        $this->assertStringContainsString('แนะนำตัว', $messages[0]->getText());
+    }
+
+    public function testOnboardStartsConversation(): void
+    {
+        $this->fakeDriver->messages = [new IncomingMessage('แนะนำตัว', 'Utest', 'token')];
+
+        $this->createBot()->listen();
+
+        $messages = $this->fakeDriver->getBotMessages();
+        $this->assertGreaterThanOrEqual(1, count($messages));
+        $this->assertStringContainsString('สอนการใช้งาน', $messages[0]->getText());
+    }
+
+    public function testOnboardingStartsConversation(): void
+    {
+        $this->fakeDriver->messages = [new IncomingMessage('สอนการใช้งาน', 'Utest', 'token')];
+
+        $this->createBot()->listen();
+
+        $messages = $this->fakeDriver->getBotMessages();
+        $this->assertGreaterThanOrEqual(1, count($messages));
+        $this->assertStringContainsString('สอนการใช้งาน', $messages[0]->getText());
+    }
+
+    public function testConversationAsksForName(): void
+    {
+        $this->fakeDriver->messages = [new IncomingMessage('สอนการใช้งาน', 'Utest', 'token')];
+
+        $this->createBot()->listen();
+
+        $messages = $this->fakeDriver->getBotMessages();
+        $this->assertGreaterThanOrEqual(1, count($messages));
+        $this->assertStringContainsString('สอนการใช้งาน', $messages[0]->getText());
+        $this->assertStringContainsString('ชื่อ', $messages[0]->getText());
+    }
+
+    public function testConversationNotResumedAcrossInstancesWithIsolatedCache(): void
+    {
+        $this->fakeDriver->messages = [new IncomingMessage('แนะนำตัว', 'Utest', 'token')];
+        $this->createBot()->listen();
+
+        $this->fakeDriver->messages = [new IncomingMessage('ตอบชื่อ', 'Utest', 'token')];
+        $this->createBot()->listen();
+
+        $messages = $this->fakeDriver->getBotMessages();
+        $this->assertCount(2, $messages);
+        $this->assertStringContainsString('ชื่อ', $messages[0]->getText());
+        $this->assertStringContainsString('รับข้อความแล้ว', $messages[1]->getText());
+    }
+
+    public function testConversationResumedAcrossInstancesWithSharedCache(): void
+    {
+        $cache = new ArrayCache();
+
+        $this->fakeDriver->messages = [new IncomingMessage('แนะนำตัว', 'Utest', 'token')];
+        $this->createBot($cache)->listen();
+
+        $this->fakeDriver->messages = [new IncomingMessage('สมชาย', 'Utest', 'token')];
+        $this->createBot($cache)->listen();
+
+        $messages = $this->fakeDriver->getBotMessages();
         $this->assertGreaterThanOrEqual(2, count($messages));
-        $this->assertStringContainsString('onboarding', $messages[0]->getText());
-        $this->assertStringContainsString('ชื่อ', $messages[1]->getText());
+        $this->assertStringContainsString('ชื่อ', $messages[0]->getText());
+        $this->assertStringContainsString('บอท', $messages[1]->getText());
     }
 }

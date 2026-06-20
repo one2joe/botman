@@ -3,6 +3,7 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 use BotMan\BotMan\BotManFactory;
+use BotMan\BotMan\Cache\FileCache;
 use BotMan\BotMan\Drivers\DriverManager;
 use BotMan\BotMan\BotMan;
 use App\Conversations\OnboardingConversation;
@@ -79,7 +80,11 @@ $config = [
     ],
 ];
 
-$botman = BotManFactory::create($config);
+$cacheDir = __DIR__ . '/../storage/cache';
+if (!is_dir($cacheDir)) {
+    mkdir($cacheDir, 0777, true);
+}
+$botman = BotManFactory::create($config, new FileCache($cacheDir));
 
 $logMiddleware = new LogMiddleware();
 $botman->middleware->received($logMiddleware);
@@ -88,22 +93,22 @@ $botman->middleware->heard($logMiddleware);
 $botman->middleware->sending($logMiddleware);
 $botman->middleware->captured($logMiddleware);
 
-$botman->hears('hi', function ($bot) {
-    Logger::log('HEARS_MATCH', ['command' => 'hi', 'handler' => 'reply with quick reply']);
+$botman->hears('สวัสดี', function ($bot) {
+    Logger::log('HEARS_MATCH', ['command' => 'สวัสดี', 'handler' => 'reply with quick reply']);
     $question = Question::create('สวัสดีครับ มีอะไรให้ช่วย?')
-        ->addButton(Button::create('แนะนำตัว')->value('onboard'))
-        ->addButton(Button::create('คำสั่ง')->value('help'))
-        ->addButton(Button::create('ทักทาย')->value('hi'));
+        ->addButton(Button::create('แนะนำตัว')->value('แนะนำตัว'))
+        ->addButton(Button::create('คำสั่ง')->value('ช่วยเหลือ'))
+        ->addButton(Button::create('ทักทาย')->value('สวัสดี'));
     $bot->reply($question);
 });
 
-$botman->hears('onboard', function ($bot) {
-    Logger::log('HEARS_MATCH', ['command' => 'onboard']);
+$botman->hears('แนะนำตัว', function ($bot) {
+    Logger::log('HEARS_MATCH', ['command' => 'แนะนำตัว']);
     $bot->startConversation(new OnboardingConversation());
 });
 
-$botman->hears('onboarding', function ($bot) {
-    Logger::log('HEARS_MATCH', ['command' => 'onboarding']);
+$botman->hears('สอนการใช้งาน', function ($bot) {
+    Logger::log('HEARS_MATCH', ['command' => 'สอนการใช้งาน']);
     $bot->startConversation(new OnboardingConversation());
 });
 
@@ -112,9 +117,9 @@ $botman->hears('\[Image\]', function ($bot) {
     $bot->reply('รับรูปภาพแล้ว');
 });
 
-$botman->hears('help', function ($bot) {
-    Logger::log('HEARS_MATCH', ['command' => 'help']);
-    $bot->reply("พิมพ์ hi เพื่อทดสอบ, onboard เพื่อเริ่ม onboarding, cancel เพื่อยกเลิก, หรือส่งรูป/โลเคชัน/สติกเกอร์มาได้");
+$botman->hears('ช่วยเหลือ', function ($bot) {
+    Logger::log('HEARS_MATCH', ['command' => 'ช่วยเหลือ']);
+    $bot->reply("พิมพ์ สวัสดี เพื่อทดสอบ, แนะนำตัว เพื่อเริ่มสอนการใช้งาน, ยกเลิก เพื่อยกเลิก, หรือส่งรูปภาพ/ตำแหน่งที่ตั้ง/สติกเกอร์มาได้");
 });
 
 $botman->fallback(function ($bot) {
