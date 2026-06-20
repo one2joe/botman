@@ -3,7 +3,7 @@
     "description": "Minimal BotMan app wired to a local LINE driver",
     "type": "project",
     "require": {
-        "php": "^7.4 || ^8.0",
+        "php": "^8.4",
         "botman/botman": "^2.0",
         "gundamew/botman-driver-line": "*",
         "vlucas/phpdotenv": "^5.6"
@@ -35,12 +35,12 @@
         }
     },
     "scripts": {
-        "serve": "php -S 127.0.0.1:8000 -t public",
-        "test": "phpunit",
-        "test-coverage": "phpunit --coverage-html build/coverage"
+        "serve": "php84 -S 127.0.0.1:8000 -t public",
+        "test": "php84 vendor/bin/phpunit",
+        "test-coverage": "php84 vendor/bin/phpunit --coverage-html build/coverage"
     },
     "require-dev": {
-        "phpunit/phpunit": "9.6.0",
+        "phpunit/phpunit": "^11.0",
         "mikey179/vfsstream": "^1.6"
     }
 }
