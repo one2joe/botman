@@ -6,7 +6,28 @@ Author: one2joe
 
 ## Overview
 
-Build a LINE Messenger chatbot using BotMan (PHP) as a proof-of-concept that demonstrates all major LINE Messaging API features. The project is decomposed into two public GitHub repositories: a reusable LINE driver package and a showcase bot.
+Build a LINE Messenger chatbot using BotMan (PHP) as a proof-of-concept that demonstrates the major LINE Messaging API features and can be exercised locally through ngrok. The project is decomposed into two public GitHub repositories: a reusable LINE driver package and a showcase bot.
+
+### Goals
+
+- Let a user chat with the bot in LINE end-to-end.
+- Run locally on one development machine with `php -S` and ngrok.
+- Keep the driver reusable and the bot as a showcase app.
+- Ship a first version that is feature-complete for the demo scope.
+- Make logs easy for humans and AI tools to debug.
+- Include unit, integration, and smoke testing before release.
+
+### Release Definition
+
+The project is ready when all of the following are true:
+
+- The bot replies successfully in LINE through a verified webhook.
+- The showcase bot supports all demo commands and sample flows described in this spec.
+- The driver can parse webhook payloads, buffer replies, flush grouped replies, and download media.
+- Health checks work.
+- Logs contain enough structured detail for AI-assisted debugging.
+- Unit, integration, and smoke tests pass.
+- A release checklist and rollback note exist.
 
 ## Repository Structure
 
@@ -81,11 +102,29 @@ A showcase LINE chatbot that demonstrates all features. Uses the driver as a loc
 - **Framework:** None (Pure PHP, built-in server `php -S`)
 - **Library:** `botman/botman ^2.0`
 - **Webhook:** `POST /botman`
-- **Cache:** `BotMan\BotMan\Cache\FileCache` (persistent conversation state)
-- **Storage:** `BotMan\BotMan\Storages\Drivers\FileStorage` (user data)
-- **Tunnel:** ngrok (`D:\Dropbox\Program\ngrok.exe`)
+- **Cache:** `BotMan\BotMan\Cache\FileCache`
+- **Storage:** `BotMan\BotMan\Storages\Drivers\FileStorage`
+- **Tunnel:** ngrok
 - **CI:** GitHub Actions (matrix PHP 8.1–8.4)
 - **LINE OA ID:** `@340bzlph`
+
+### Operating Mode
+
+- Primary runtime target is a single developer machine.
+- The first implementation must be runnable locally without infrastructure beyond PHP and ngrok.
+- Production deployment may be added later, but this spec must remain compatible with that path.
+
+### Configuration Strategy
+
+- Use `config.php` for real values.
+- Use `config.example.php` as the committed template.
+- Configuration must support:
+  - LINE credentials
+  - cache TTL
+  - log level
+  - endpoint/path values that may vary
+- TTL values must be configurable.
+- State should persist across requests and expire on a configurable schedule.
 
 ### LINE Driver (`LineDriver`)
 
@@ -101,7 +140,7 @@ Extends `BotMan\BotMan\Drivers\HttpDriver`. Single class manages all message typ
 | `hasMatchingEvent()` | Return `Follow`/`Unfollow`/`Join`/`Leave` event objects for event-type webhooks. **Postback is NOT routed through this method** — it goes through `getMessages()` text matching |
 | `buildServicePayload($message, $matchingMessage, $additionalParameters)` | Detect input type in order: `Buttons`/`Carousel`/`Confirm`/`ImageCarousel` → LINE template JSON; `Question` → text + Quick Reply (map `addButton()` actions as message type); `OutgoingMessage` → check attachment (Image/Video/Audio/Location) + text fallback; raw `array` → pass through as Flex Message |
 | `sendPayload($payload)` | **Buffer** reply into `$this->replyBuffer[]` with `['replyToken' => ..., 'messages' => [...]]`. Does NOT send immediately |
-| `messagesHandled()` | **Flush buffer**: group replies by `replyToken`, slice each group to **max 5 messages** (LINE limit), POST each group to `/v2/bot/message/reply`. Dropped messages > 5 are logged via `error_log()` |
+| `messagesHandled()` | **Flush buffer**: group replies by `replyToken`, slice each group to **max 5 messages** (LINE limit), POST each group to `/v2/bot/message/reply`. Dropped messages > 5 are logged |
 | `sendRequest($endpoint, $params, $matchingMessage)` | Low-level API request — maps to LINE API with auth header |
 | `getMessageContent($messageId)` | Download media content from `GET /v2/bot/message/{messageId}/content`. Returns raw binary |
 | `isConfigured()` | `channel_secret` AND `channel_access_token` non-empty |
@@ -116,22 +155,22 @@ Extends `BotMan\BotMan\Drivers\HttpDriver`. Single class manages all message typ
 
 #### Logging Format
 
-When `setLogger()` is registered, each webhook produces:
+Logging must be optimized for AI-assisted debugging.
 
-```
-2026-06-19T10:30:00+07:00  [WEBHOOK] received 1 events
-2026-06-19T10:30:00+07:00  [WEBHOOK_BODY]
-{"events":[{...full incoming payload...}]}
-2026-06-19T10:30:01+07:00  [MATCHED] "สวัสดี|hi|hello" → callback handleHello
-2026-06-19T10:30:01+07:00  [REPLY] 1 msg + 2 quickReply
-2026-06-19T10:30:01+07:00  [REPLY_BODY]
-{...full outgoing payload...}
-2026-06-19T10:30:01+07:00  [API_RESP] POST /message/reply → 200
-2026-06-19T10:30:01+07:00  [API_RESP_BODY]
-{...}
-```
-
-LINE API errors are logged via `error_log()`.
+- Primary output format: JSON.
+- Each log record should include at least:
+  - `timestamp`
+  - `level`
+  - `event`
+  - `message`
+  - `context`
+  - `request_id`
+  - `reply_token`
+  - `raw_request`
+  - `raw_response`
+- Request and response bodies should be captured when available.
+- Logging should be structured enough that a model can reconstruct a request lifecycle from the output alone.
+- Driver logging remains callback-based; the bot decides how to render or persist records.
 
 ### LINE API Integration
 
@@ -175,7 +214,7 @@ If user does not provide `altText` on a template, the driver auto-generates from
 ### Entry Point (`bot.php`)
 
 ```
-GET  /              → 200 {"status":"ok","bot":"LINE BotMan"}
+GET  /              → 200 JSON health response
 GET  /media/{file}  → Serve static files from media/ directory
 POST /botman        → LINE webhook processing
                        1. Check empty events → 200 OK
@@ -187,13 +226,28 @@ POST /botman        → LINE webhook processing
 อื่นๆ               → 200 OK
 ```
 
+#### Health Endpoint
+
+The root endpoint must return JSON with:
+
+- basic application status
+- config readiness
+- version/build info
+
+Version/build info must include:
+
+- package/version information
+- git commit SHA when available
+
+The health endpoint exists to support quick smoke checks after restart, deploy, or ngrok setup.
+
 ### Conversation Commands (Thai + English)
 
 | hears() pattern | Trigger | Response |
 |-----------------|---------|----------|
-| `สวัสดี|hi|hello` | User says hello | Text + Quick Reply: `/ช่วยเหลือ`, `/เมนู` |
-| `/ช่วยเหลือ|/help` | Help command | Buttons template listing features |
-| `/เมนู|/menu` | Menu command | Carousel with feature cards |
+| `สวัสดี|hi|hello` | User says hello | Text + context-aware Quick Reply |
+| `/ช่วยเหลือ|/help` | Help command | Buttons template with command list, descriptions, and short examples |
+| `/เมนู|/menu` | Menu command | Carousel with feature cards, descriptions, and usage examples |
 | `/แนะนำ|/tutorial` | Tutorial command | Start `TutorialConversation` |
 | `/ชื่อ|/name` | Name command | Start `NameConversation` |
 | `/เทมเพลต|/template` | Template demo | Buttons → chooses sub-template type |
@@ -204,7 +258,7 @@ POST /botman        → LINE webhook processing
 | `__audio__` | User sent audio | "Audio received!" |
 | `__video__` | User sent video | "Video received!" |
 | `on('follow')` | User adds bot | Start `TutorialConversation` |
-| fallback `(.*)` | No pattern matched | "ไม่เข้าใจคำถาม พิมพ์ /ช่วยเหลือ" |
+| fallback `(.*)` | No pattern matched | Fallback message with navigation quick reply |
 
 ### Conversations
 
@@ -277,6 +331,19 @@ Test scenarios:
 - `test_invalid_signature_returns_200()` — bad HMAC → 200, no outbound call
 - `test_unknown_command_shows_fallback()` — unmatched → fallback reply
 
+### Smoke Tests
+
+Smoke tests are mandatory before release and should be runnable against the ngrok URL and LINE webhook verification flow.
+
+Minimum smoke coverage:
+
+- Health endpoint returns a JSON success response.
+- LINE webhook verification succeeds.
+- A hello message returns a valid reply.
+- A fallback message returns guidance and navigation.
+- Logging captures a readable request lifecycle.
+- Reply buffering still respects the five-message LINE limit.
+
 ### CI
 
 Both repos have GitHub Actions with PHP 8.1/8.2/8.3/8.4 matrix:
@@ -330,29 +397,33 @@ Same structure as example but with real values from LINE Developers Console.
 
 | Scenario | Behavior |
 |----------|----------|
-| Bad HMAC signature | `matchesRequest()` = false → 200 OK, no processing |
-| Empty events array | Return 200 OK immediately |
-| LINE API returns non-200 | `error_log()` the response |
-| Reply buffer > 5 messages | First 5 sent, rest discarded, `error_log()` count |
+| Bad HMAC signature | `matchesRequest()` = false → 200 OK, no processing, detailed log |
+| Empty events array | Return 200 OK immediately, detailed log |
+| LINE API returns non-200 | Log response and apply retry/fallback where appropriate |
+| Reply buffer > 5 messages | First 5 sent, rest discarded, log dropped count |
 | Exception in `$botman->listen()` | Caught by try-catch, 200 OK returned |
-| LINE API media URL not HTTPS | Message sent but LINE will reject display |
-| Conversation cache full | Old conversations evicted by FileCache TTL (30 min default) |
+| LINE API media URL not HTTPS | Message sent but LINE may reject display |
+| Conversation cache full | Old conversations evicted by TTL configured value |
+
+### Retry and Fallback Policy
+
+- Log every failure that affects reply delivery.
+- Retry only when the failure is likely transient and safe to retry.
+- If a user-visible response is still possible, provide a fallback reply or navigation hint.
+- Failures must not break the webhook response path.
 
 ## Development Workflow
 
-```bash
-# Terminal 1: Start bot
-cd D:\www\botman-line-bot
-composer install
-php -S localhost:8080 bot.php
+The exact commands should be written into the implementation docs and scripts, but the required flow is:
 
-# Terminal 2: Start ngrok tunnel
-D:\Dropbox\Program\ngrok.exe http 8080
+1. Install dependencies.
+2. Start the showcase bot server locally.
+3. Start an ngrok tunnel to the local server.
+4. Register the ngrok webhook URL in LINE Developers Console.
+5. Verify the webhook.
+6. Send a LINE message and confirm the reply, logs, and health endpoint.
 
-# LINE Developer Console
-# Webhook URL: https://{ngrok-subdomain}.ngrok.app/botman
-# Click "Verify"
-```
+This flow must be reproducible on a single development machine without additional infrastructure.
 
 ## Key Design Decisions
 
@@ -373,3 +444,23 @@ D:\Dropbox\Program\ngrok.exe http 8080
 2. **Media content download** (`getMessageContent()`) fetches from LINE API during the webhook lifecycle. For large files, consider async processing in production.
 3. **No push messaging** — the driver supports reply-only. Push notifications require separate LINE API calls.
 4. **Rate limits** — LINE messaging API has per-second rate limits (~500 req/s per bot). Not a concern for POC but relevant for production.
+
+## Release Checklist
+
+- `config.php` exists locally and `config.example.php` is committed.
+- The webhook verifies successfully in LINE Developers Console.
+- Health endpoint returns JSON and includes version/build info.
+- Hello, help, menu, tutorial, name, template, flex, media, postback, and fallback flows work.
+- Logs are JSON and include request and response detail.
+- Unit tests pass.
+- Integration tests pass.
+- Smoke test through ngrok/LINE passes.
+- Reply buffering still caps at 5 messages per reply token.
+- A rollback note exists for the current build.
+
+## Implementation Notes
+
+- Use English terms as the primary vocabulary in code and docs, with Thai explanations where helpful.
+- Keep the bot and driver split into separate repositories.
+- Keep the driver path-referenced from the bot during local development.
+- Preserve the current design choice that postback matches through `hears()` rather than a dedicated event handler.
