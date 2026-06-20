@@ -4,6 +4,7 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use BotMan\BotMan\BotManFactory;
 use BotMan\BotMan\Drivers\DriverManager;
+use App\Conversations\OnboardingConversation;
 use Dotenv\Dotenv;
 use BotMan\Drivers\Line\LineDriver;
 use BotMan\Drivers\Line\LineImageDriver;
@@ -37,8 +38,16 @@ $botman->hears('hi', function ($bot) {
     $bot->reply('สวัสดีครับ');
 });
 
+$botman->hears('onboard', function ($bot) {
+    $bot->startConversation(new OnboardingConversation());
+});
+
+$botman->hears('onboarding', function ($bot) {
+    $bot->startConversation(new OnboardingConversation());
+});
+
 $botman->hears('help', function ($bot) {
-    $bot->reply("พิมพ์ hi เพื่อทดสอบ, หรือส่งรูป/โลเคชัน/สติกเกอร์มาได้");
+    $bot->reply("พิมพ์ hi เพื่อทดสอบ, onboard เพื่อเริ่ม onboarding, cancel เพื่อยกเลิก, หรือส่งรูป/โลเคชัน/สติกเกอร์มาได้");
 });
 
 $botman->fallback(function ($bot) {
