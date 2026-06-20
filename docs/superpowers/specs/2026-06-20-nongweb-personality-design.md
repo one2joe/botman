@@ -8,11 +8,10 @@
 
 | File | การเปลี่ยนแปลง |
 |---|---|
-| `public/index.php` | แก้ response strings, เพิ่ม triggers, เพิ่ม `[Sticker]`/`[Location]` handlers |
-| `src/Conversations/OnboardingConversation.php` | ปรับเป็น 5 ขั้นตอน, แก้โทนข้อความ |
-| `src/Conversations/BaseConversation.php` | ขยาย cancel triggers เป็น 4 คำ, ปรับ cancel message |
+| `public/index.php` | แก้ response strings, เพิ่ม triggers, แยก Capability/Help, เพิ่ม `[Sticker]`/`[Location]` handlers |
+| `src/Conversations/OnboardingConversation.php` | ปรับเป็น 5 steps (รวม askGoal), แก้โทนข้อความ |
+| `src/Conversations/BaseConversation.php` | เปลี่ยน cancel check เป็น `isInteractiveMessageReply()`, ปรับ cancel message |
 | `tests/Feature/BotResponseTest.php` | เพิ่ม/อัปเดต tests ทุกเคส |
-| `tests/Unit/LoggerTest.php` | ไม่ต้องแก้ |
 
 ## Intents
 
@@ -23,9 +22,17 @@
 
 ### 2. แนะนำตัว / Onboarding
 - **Triggers**: `แนะนำตัว`, `รู้จัก`, `เป็นใคร`
-- **Response**: เริ่ม OnboardingConversation
+- **Steps**:
+  1. Say: "สวัสดีค่า~ ดีใจที่ได้รู้จักนะคะ! 💕"
+  2. Ask: "ขอชื่อเล่นหน่อยได้ไหมคะ? เรียกอะไรดีเอ่ย~"
+  3. Say: "ยินดีที่ได้รู้จัก {name} นะค้าา~ 💕"
+  4. Ask: "สนใจอยากให้บอทช่วยอะไรเป็นหลัก?" — [คุยเล่น] [ลองส่งรูป] [ทดสอบ webhook] [ข้าม] [ยกเลิก]
+     - ข้าม (in-closure) → ไปสรุป
+  5. Say: "{name} เลือก {goal} ไว้ใช่มั้ยเอ่ย~ พร้อมช่วยแล้วนะค้าา..."
+- **Cancel**: Quick reply value=`cancel`, ตรวจ `isInteractiveMessageReply()` ใน `BaseConversation::ask()`
+- **Skip**: ตรวจ `getText() === 'ข้าม'` ใน closure ของ askGoal
 
-### 3. ดูความสามารถ
+### 3. ดูความสามารถ (Capability)
 - **Triggers**: `ดูความสามารถ`, `ทำอะไรได้บ้าง`, `สอนการใช้งาน`, `help`
 - **Response**: "โอ้ยยย น้องดีใจที่คุณอยากรู้ความสามารถของน้องเลยค่าา~ 💖 ..."
 
@@ -35,7 +42,7 @@
 
 ### 5. รูปภาพ
 - **Trigger**: `[Image]` (LINE auto)
-- **Response**: "ว้าววว~ รูปสวยมากเลยค่าาา 💕 รับรูปแล้วนะคะ อยากให้เวบช่วยอะไรกับรูปนี้ดีคะ?"
+- **Response**: "ว้าววว~ รูปสวยมากเลยค่าาา 💕 รับรูปแล้วนะคะ..."
 
 ### 6. สติกเกอร์
 - **Trigger**: `[Sticker]` (LINE auto)
@@ -43,44 +50,39 @@
 
 ### 7. ตำแหน่งที่ตั้ง
 - **Trigger**: `[Location]` (LINE auto)
-- **Response**: "ได้รับตำแหน่งแล้วค่าาา 📍 ใกล้ ๆ นี้เลยเหรอ ขาาา อยากให้ช่วยหาข้อมูลอะไรตรงนี้ไหมคะ?"
+- **Response**: "ได้รับตำแหน่งแล้วค่าาา 📍 ใกล้ ๆ นี้เลยเหรอ..."
 
 ### 8. ยกเลิก (Cancel)
-- **Triggers**: `ยกเลิก`, `cancel`, `พอ`, `หยุด`
 - **ใน Conversation**: "ยกเลิกแล้วนะคะ~ ✅ ไม่เป็นไรเลยค่าาา อยากทำอะไรต่อบอกน้องได้เลย"
-- **นอก Conversation**: "อืมม~ พิมพ์ ช่วยเหลือ เพื่อดูเมนูนะค้าา"
+- **นอก Conversation**: Fallback (ไม่แยก handler)
+- **Mechanism**: Quick reply button (value=`cancel`) เท่านั้น, ตรวจ `isInteractiveMessageReply()`
 
 ### 9. Fallback
 - **Response**: "อ๊ะ~ น้องเวบยังไม่ค่อยเข้าใจเลยค่ะ 😅 ลองพิมพ์ *ช่วยเหลือ* ดูนะค้าาา"
 
 ## Conversation Flow (Onboarding) — 5 Steps
 
-1. ทักทายน่ารัก
-2. ถามชื่อผู้ใช้
-3. ทักกลับด้วยชื่อ
-4. โชว์ความสามารถสั้น ๆ
-5. จบ "พร้อมช่วยแล้วนะค้าา~"
+1. Say ต้อนรับ: "สวัสดีค่า~ ดีใจที่ได้รู้จักนะคะ! 💕"
+2. Ask ชื่อ (required): "ขอชื่อเล่นหน่อยได้ไหมคะ?"
+3. Say: "ยินดีที่ได้รู้จัก {name} นะค้าา~ 💕"
+4. Ask เป้าหมาย (optional, ข้ามได้):
+   - Buttons: คุยเล่น, ลองส่งรูป, ทดสอบ webhook, ข้าม, ยกเลิก
+   - ข้าม → ไปสรุป
+5. Say สรุป: "{name} เลือก {goal} ไว้ใช่มั้ย..."
 
 Cancel ทุกขั้นตอน → ยกเลิก + จบ conversation
 
 ## Technical Notes
 
-- **Multiple triggers**: แต่ละ trigger value ใช้แยก `hears()` call (ไม่ใช้ regex) ตาม pattern เดิมของ codebase
-- **Cancel check**: `BaseConversation::ask()` ตรวจ `in_array(trim($answer->getText()), ['ยกเลิก', 'cancel', 'พอ', 'หยุด'])` แทนการเทียบแค่ `ยกเลิก`
-- **Media handlers**: LINE driver ส่ง `[Sticker]` และ `[Location]` เป็นข้อความ plain text — ใช้ `hears('\[Sticker\]')` และ `hears('\[Location\]')` เช่นเดียวกับ `[Image]`
-
-## Testing Strategy
-
-- ทุก intent มี test: ส่ง trigger → ตรวจ response string
-- Cross-request conversation test (shared cache)
-- Cancel in/out of conversation
-- Media handlers ทั้ง 3 แบบ
-- New triggers แต่ละอัน
+- **Multiple triggers**: แต่ละ trigger value ใช้แยก `hears()` call (ไม่ใช้ regex) ตาม pattern เดิม
+- **Cancel check**: `BaseConversation::ask()` wrapper ตรวจ `$answer->isInteractiveMessageReply() && $answer->getValue() === 'cancel'`
+- **Skip check**: ตรวจ `trim($answer->getText()) === 'ข้าม'` ภายใน closure ของ askGoal (ไม่ใช้ `skipsConversation`)
+- **Media handlers**: LINE driver ส่ง `[Sticker]` และ `[Location]` เป็นข้อความ plain text
 
 ## Implementation Order
 
-1. อัปเดต `OnboardingConversation.php` (5 steps, new tone)
-2. อัปเดต `BaseConversation.php` (cancel message)
-3. อัปเดต `public/index.php` (all handlers + triggers)
-4. อัปเดต tests (ทุกเคส + เพิ่มเคสใหม่)
+1. BaseConversation — cancel mechanism + message
+2. OnboardingConversation — 5 steps + nongweb tone
+3. index.php — all handlers + triggers + media handlers
+4. BotResponseTest — ทุกเคส
 5. รัน tests → แก้จนผ่าน
