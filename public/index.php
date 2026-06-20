@@ -8,6 +8,8 @@ use BotMan\BotMan\BotMan;
 use App\Conversations\OnboardingConversation;
 use App\Logger;
 use App\LogMiddleware;
+use BotMan\BotMan\Messages\Outgoing\Actions\Button;
+use BotMan\BotMan\Messages\Outgoing\Question;
 use Dotenv\Dotenv;
 use BotMan\Drivers\Line\LineDriver;
 use BotMan\Drivers\Line\LineImageDriver;
@@ -87,8 +89,12 @@ $botman->middleware->sending($logMiddleware);
 $botman->middleware->captured($logMiddleware);
 
 $botman->hears('hi', function ($bot) {
-    Logger::log('HEARS_MATCH', ['command' => 'hi', 'handler' => 'reply สวัสดีครับ']);
-    $bot->reply('สวัสดีครับ');
+    Logger::log('HEARS_MATCH', ['command' => 'hi', 'handler' => 'reply with quick reply']);
+    $question = Question::create('สวัสดีครับ มีอะไรให้ช่วย?')
+        ->addButton(Button::create('แนะนำตัว')->value('onboard'))
+        ->addButton(Button::create('คำสั่ง')->value('help'))
+        ->addButton(Button::create('ทักทาย')->value('hi'));
+    $bot->reply($question);
 });
 
 $botman->hears('onboard', function ($bot) {
@@ -99,6 +105,11 @@ $botman->hears('onboard', function ($bot) {
 $botman->hears('onboarding', function ($bot) {
     Logger::log('HEARS_MATCH', ['command' => 'onboarding']);
     $bot->startConversation(new OnboardingConversation());
+});
+
+$botman->hears('\[Image\]', function ($bot) {
+    Logger::log('HEARS_MATCH', ['command' => 'image']);
+    $bot->reply('รับรูปภาพแล้ว');
 });
 
 $botman->hears('help', function ($bot) {

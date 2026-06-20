@@ -4,6 +4,8 @@ namespace App\Tests\Feature;
 
 use App\Conversations\OnboardingConversation;
 use App\Logger;
+use BotMan\BotMan\Messages\Outgoing\Actions\Button;
+use BotMan\BotMan\Messages\Outgoing\Question;
 use BotMan\BotMan\BotMan;
 use BotMan\BotMan\BotManFactory;
 use BotMan\BotMan\Drivers\DriverManager;
@@ -38,7 +40,11 @@ class BotResponseTest extends TestCase
     {
         $botman = BotManFactory::create([]);
         $botman->hears('hi', function ($bot) {
-            $bot->reply('สวัสดีครับ');
+            $question = Question::create('สวัสดีครับ มีอะไรให้ช่วย?')
+                ->addButton(Button::create('แนะนำตัว')->value('onboard'))
+                ->addButton(Button::create('คำสั่ง')->value('help'))
+                ->addButton(Button::create('ทักทาย')->value('hi'));
+            $bot->reply($question);
         });
         $botman->hears('onboard', function ($bot) {
             $bot->startConversation(new OnboardingConversation());
@@ -46,6 +52,10 @@ class BotResponseTest extends TestCase
         $botman->hears('onboarding', function ($bot) {
             $bot->startConversation(new OnboardingConversation());
         });
+        $botman->hears('\[Image\]', function ($bot) {
+            $bot->reply('รับรูปภาพแล้ว');
+        });
+
         $botman->hears('help', function ($bot) {
             $bot->reply("พิมพ์ hi เพื่อทดสอบ, onboard เพื่อเริ่ม onboarding, cancel เพื่อยกเลิก, หรือส่งรูป/โลเคชัน/สติกเกอร์มาได้");
         });
@@ -55,7 +65,7 @@ class BotResponseTest extends TestCase
         return $botman;
     }
 
-    public function testHiRepliesSawasdee(): void
+    public function testHiRepliesWithQuickReplyButtons(): void
     {
         $this->fakeDriver->messages = [new IncomingMessage('hi', 'Utest', 'token')];
 
@@ -63,7 +73,23 @@ class BotResponseTest extends TestCase
 
         $messages = $this->fakeDriver->getBotMessages();
         $this->assertCount(1, $messages);
-        $this->assertSame('สวัสดีครับ', $messages[0]->getText());
+        $this->assertInstanceOf(\BotMan\BotMan\Messages\Outgoing\Question::class, $messages[0]);
+
+        $question = $messages[0];
+        $this->assertSame('สวัสดีครับ มีอะไรให้ช่วย?', $question->getText());
+
+        $buttons = $question->getButtons();
+        $this->assertCount(3, $buttons);
+
+        $labels = array_column($buttons, 'text');
+        $this->assertContains('แนะนำตัว', $labels);
+        $this->assertContains('คำสั่ง', $labels);
+        $this->assertContains('ทักทาย', $labels);
+
+        $values = array_column($buttons, 'value');
+        $this->assertContains('onboard', $values);
+        $this->assertContains('help', $values);
+        $this->assertContains('hi', $values);
     }
 
     public function testUnknownMessageFallsBack(): void
@@ -76,6 +102,17 @@ class BotResponseTest extends TestCase
         $this->assertCount(1, $messages);
         $this->assertStringContainsString('รับข้อความแล้ว', $messages[0]->getText());
         $this->assertStringContainsString('xyz', $messages[0]->getText());
+    }
+
+    public function testImageHandlerReplies(): void
+    {
+        $this->fakeDriver->messages = [new IncomingMessage('[Image]', 'Utest', 'token')];
+
+        $this->createBot()->listen();
+
+        $messages = $this->fakeDriver->getBotMessages();
+        $this->assertCount(1, $messages);
+        $this->assertStringContainsString('รับรูปภาพแล้ว', $messages[0]->getText());
     }
 
     public function testHelpReplies(): void
