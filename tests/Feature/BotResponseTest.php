@@ -68,7 +68,7 @@ class BotResponseTest extends TestCase
             $bot->reply("พิมพ์ สวัสดี เพื่อทดสอบ, แนะนำตัว เพื่อเริ่มสอนการใช้งาน, ยกเลิก เพื่อยกเลิก, หรือส่งรูปภาพ/ตำแหน่งที่ตั้ง/สติกเกอร์มาได้");
         });
         $botman->fallback(function ($bot) {
-            $bot->reply('รับข้อความแล้ว: ' . $bot->getMessage()->getText());
+            $bot->reply('ไม่เข้าใจครับ พิมพ์ ช่วยเหลือ เพื่อดูว่าผมทำอะไรได้บ้าง');
         });
     }
 
@@ -107,8 +107,8 @@ class BotResponseTest extends TestCase
 
         $messages = $this->fakeDriver->getBotMessages();
         $this->assertCount(1, $messages);
-        $this->assertStringContainsString('รับข้อความแล้ว', $messages[0]->getText());
-        $this->assertStringContainsString('xyz', $messages[0]->getText());
+        $this->assertStringContainsString('ไม่เข้าใจครับ', $messages[0]->getText());
+        $this->assertStringContainsString('ช่วยเหลือ', $messages[0]->getText());
     }
 
     public function testImageHandlerReplies(): void
@@ -200,8 +200,8 @@ class BotResponseTest extends TestCase
 
         $messages = $this->fakeDriver->getBotMessages();
         $this->assertCount(1, $messages);
-        $this->assertStringContainsString('รับข้อความแล้ว', $messages[0]->getText());
-        $this->assertStringContainsString('ยกเลิก', $messages[0]->getText());
+        $this->assertStringContainsString('ไม่เข้าใจครับ', $messages[0]->getText());
+        $this->assertStringContainsString('ช่วยเหลือ', $messages[0]->getText());
     }
 
     public function testHelpReplies(): void
@@ -261,7 +261,7 @@ class BotResponseTest extends TestCase
         $messages = $this->fakeDriver->getBotMessages();
         $this->assertCount(2, $messages);
         $this->assertStringContainsString('ชื่อ', $messages[0]->getText());
-        $this->assertStringContainsString('รับข้อความแล้ว', $messages[1]->getText());
+        $this->assertStringContainsString('ไม่เข้าใจครับ', $messages[1]->getText());
     }
 
     public function testConversationResumedAcrossInstancesWithSharedCache(): void

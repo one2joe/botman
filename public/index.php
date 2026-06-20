@@ -124,7 +124,7 @@ $botman->hears('ช่วยเหลือ', function ($bot) {
 
 $botman->fallback(function ($bot) {
     Logger::log('FALLBACK', ['text' => $bot->getMessage()->getText()]);
-    $bot->reply('รับข้อความแล้ว: ' . $bot->getMessage()->getText());
+    $bot->reply('ไม่เข้าใจครับ พิมพ์ ช่วยเหลือ เพื่อดูว่าผมทำอะไรได้บ้าง');
 });
 
 try {
