@@ -175,19 +175,33 @@ class BotResponseTest extends TestCase
 
     public function testConversationCancelInThai(): void
     {
-        $this->fakeDriver->messages = [
-            new IncomingMessage('แนะนำตัว', 'Utest', 'token1'),
-            new IncomingMessage('ยกเลิก', 'Utest', 'token2'),
-        ];
+        $cache = new ArrayCache();
+
+        $this->fakeDriver->messages = [new IncomingMessage('แนะนำตัว', 'Utest', 'token')];
+        $this->createBot($cache)->listen();
+
+        $this->fakeDriver->messages = [new IncomingMessage('ยกเลิก', 'Utest', 'token')];
+        $this->createBot($cache)->listen();
+
+        $messages = $this->fakeDriver->getBotMessages();
+        $this->assertGreaterThanOrEqual(2, count($messages));
+        $this->assertStringContainsString('สอนการใช้งาน', $messages[0]->getText());
+        $this->assertStringContainsString('ยกเลิกการสอนการใช้งานแล้ว', $messages[1]->getText());
+        foreach ($messages as $msg) {
+            $this->assertStringNotContainsString('สรุปการสอนการใช้งาน', $msg->getText());
+        }
+    }
+
+    public function testCancelWithoutConversationFallsBack(): void
+    {
+        $this->fakeDriver->messages = [new IncomingMessage('ยกเลิก', 'Utest', 'token')];
 
         $this->createBot()->listen();
 
         $messages = $this->fakeDriver->getBotMessages();
-        $this->assertGreaterThanOrEqual(1, count($messages));
-        $this->assertStringContainsString('สอนการใช้งาน', $messages[0]->getText());
-        foreach ($messages as $msg) {
-            $this->assertStringNotContainsString('สรุปการสอนการใช้งาน', $msg->getText());
-        }
+        $this->assertCount(1, $messages);
+        $this->assertStringContainsString('รับข้อความแล้ว', $messages[0]->getText());
+        $this->assertStringContainsString('ยกเลิก', $messages[0]->getText());
     }
 
     public function testHelpReplies(): void

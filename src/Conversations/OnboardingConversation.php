@@ -2,13 +2,12 @@
 
 namespace App\Conversations;
 
-use BotMan\BotMan\Messages\Conversations\Conversation;
 use BotMan\BotMan\Messages\Incoming\Answer;
 use BotMan\BotMan\Messages\Incoming\IncomingMessage;
 use BotMan\BotMan\Messages\Outgoing\Actions\Button;
 use BotMan\BotMan\Messages\Outgoing\Question;
 
-class OnboardingConversation extends Conversation
+class OnboardingConversation extends BaseConversation
 {
     protected $name;
     protected $goal;
@@ -55,11 +54,6 @@ class OnboardingConversation extends Conversation
                 'พิมพ์ "ช่วยเหลือ" เพื่อดูคำสั่ง หรือ "แนะนำตัว" เพื่อเริ่มใหม่ได้เลย'
             );
         });
-    }
-
-    public function stopsConversation(IncomingMessage $message)
-    {
-        return trim($message->getText()) === 'ยกเลิก';
     }
 
     public function skipsConversation(IncomingMessage $message)
