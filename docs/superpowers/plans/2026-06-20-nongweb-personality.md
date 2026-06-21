@@ -65,15 +65,19 @@ Expected: 2 FAILURES (text-ignored tests pass by luck; button test fails because
 
 - [ ] **Step 3: แก้ BaseConversation.php**
 
-เปลี่ยนจาก:
+เพิ่ม imports:
 ```php
-if (trim($answer->getText()) === 'ยกเลิก') {
-    $this->bot->reply('ยกเลิกการสอนการใช้งานแล้ว');
+use BotMan\BotMan\Messages\Outgoing\Actions\Button;
+use BotMan\BotMan\Messages\Outgoing\Question;
 ```
-เป็น:
+
+เปลี่ยน cancel check:
 ```php
 if ($answer->isInteractiveMessageReply() && $answer->getValue() === 'cancel') {
-    $this->bot->reply('ยกเลิกแล้วนะคะ~ ✅ ไม่เป็นไรเลยค่าาา อยากทำอะไรต่อบอกน้องได้เลย');
+    $question = Question::create('ยกเลิกแล้วนะคะ~ ✅ ไม่เป็นไรเลยค่าาา อยากทำอะไรต่อบอกน้องได้เลย')
+        ->addButton(Button::create('ดูความสามารถ')->value('ดูความสามารถ'))
+        ->addButton(Button::create('ช่วยเหลือ')->value('ช่วยเหลือ'));
+    $this->bot->reply($question);
 ```
 
 - [ ] **Step 4: รัน test เพื่อยืนยันว่าผ่าน**
@@ -135,7 +139,6 @@ Expected: 1 FAILURE ("ดีใจที่ได้รู้จัก" not foun
 namespace App\Conversations;
 
 use BotMan\BotMan\Messages\Incoming\Answer;
-use BotMan\BotMan\Messages\Incoming\IncomingMessage;
 use BotMan\BotMan\Messages\Outgoing\Actions\Button;
 use BotMan\BotMan\Messages\Outgoing\Question;
 
@@ -152,7 +155,10 @@ class OnboardingConversation extends BaseConversation
 
     protected function askName()
     {
-        $this->ask('ขอชื่อเล่นหน่อยได้ไหมคะ? เรียกอะไรดีเอ่ย~', function (Answer $answer) {
+        $question = Question::create('ขอชื่อเล่นหน่อยได้ไหมคะ? เรียกอะไรดีเอ่ย~')
+            ->addButton(Button::create('ยกเลิก')->value('cancel'));
+
+        $this->ask($question, function (Answer $answer) {
             $this->name = trim($answer->getText()) ?: 'เพื่อน';
             $this->say("ยินดีที่ได้รู้จัก {$this->name} นะค้าา~ 💕");
             $this->askGoal();
@@ -170,10 +176,10 @@ class OnboardingConversation extends BaseConversation
 
         $this->ask($question, function (Answer $answer) {
             if (trim($answer->getText()) === 'ข้าม') {
-                $this->goal = 'คุยเล่น';
-            } else {
-                $this->goal = trim($answer->getText()) ?: 'คุยเล่น';
+                $this->say("ไม่เป็นไรเลยค่าา~ ไว้มาคุยกับน้องเวบใหม่ได้ตลอดเลยนะคะ 😘");
+                return;
             }
+            $this->goal = trim($answer->getText()) ?: 'คุยเล่น';
             $this->say("{$this->name} เลือก {$this->goal} ไว้ใช่มั้ยเอ่ย~ พร้อมช่วยแล้วนะค้าาา ถ้าอยากรู้อะไรเพิ่มเติมพิมพ์ ช่วยเหลือ ได้เลยนะคะ 😘");
         });
     }
@@ -224,7 +230,7 @@ foreach ($messages as $msg) {
 }
 ```
 
-หมายเหตุ: testConversationCancelInThai ยังคงส่ง `IncomingMessage('ยกเลิก', ...)` โดยไม่ set interactive reply — เปลี่ยนเป็น `->setIsInteractiveReply(true)` ด้วย มิฉะนั้น cancel จะไม่ทำงาน
+หมายเหตุ: testConversationCancelInThai ต้องเปลี่ยนเป็นส่ง `'cancel'` (button value) ไม่ใช่ `'ยกเลิก'` และ set interactive reply: `(new IncomingMessage('cancel', 'Utest', 'token'))->setIsInteractiveReply(true)`
 
 **testCancelWithoutConversationFallsBack** → fallback message ใหม่:
 ```php
@@ -300,6 +306,11 @@ git commit -m "feat: rewrite OnboardingConversation to 5-step nongweb flow with 
             });
         }
 
+        // Image
+        $botman->hears('\[Image\]', function ($bot) {
+            $bot->reply('ว้าววว~ รูปสวยมากเลยค่าาา 💕 รับรูปแล้วนะคะ อยากให้เวบช่วยอะไรกับรูปนี้ดีคะ?');
+        });
+
         // Help — multiple triggers
         foreach (['ช่วยเหลือ', 'เมนู', 'menu'] as $trigger) {
             $botman->hears($trigger, function ($bot) {
@@ -310,11 +321,6 @@ git commit -m "feat: rewrite OnboardingConversation to 5-step nongweb flow with 
                     "ลองทำอะไรก็ได้เลยค่าาา~");
             });
         }
-
-        // Image
-        $botman->hears('\[Image\]', function ($bot) {
-            $bot->reply('ว้าววว~ รูปสวยมากเลยค่าาา 💕 รับรูปแล้วนะคะ อยากให้เวบช่วยอะไรกับรูปนี้ดีคะ?');
-        });
 
         // Sticker
         $botman->hears('\[Sticker\]', function ($bot) {
@@ -580,15 +586,21 @@ $botman->fallback(function ($bot) {
 **testHiRepliesWithQuickReplyButtons:**
 ```php
 $this->assertSame('สวัสดีค่าาา~ 💕 น้องเวบเองนะค้าา มาเจอกันอีกแล้วว~ มีอะไรให้ช่วยเหลือไหมคะ?', $question->getText());
-$this->assertContains('ดูความสามารถ', $labels);  // replaces 'คำสั่ง'
-$this->assertContains('ช่วยเหลือ', $labels);     // replaces 'ทักทาย'
+$labels = array_column($buttons, 'text');
+$this->assertCount(3, $labels);
+$this->assertContains('แนะนำตัว', $labels);
+$this->assertContains('ดูความสามารถ', $labels);
+$this->assertContains('ช่วยเหลือ', $labels);
 ```
 
 **testHiInThai:**
 ```php
 $this->assertSame('สวัสดีค่าาา~ 💕 น้องเวบเองนะค้าา มาเจอกันอีกแล้วว~ มีอะไรให้ช่วยเหลือไหมคะ?', $messages[0]->getText());
-$this->assertContains('ดูความสามารถ', $labels);  // replaces 'คำสั่ง'
-$this->assertContains('ช่วยเหลือ', $labels);     // replaces 'ทักทาย'
+$labels = array_column($messages[0]->getButtons(), 'text');
+$this->assertCount(3, $labels);
+$this->assertContains('แนะนำตัว', $labels);
+$this->assertContains('ดูความสามารถ', $labels);
+$this->assertContains('ช่วยเหลือ', $labels);
 ```
 
 **testUnknownMessageFallsBack:**
