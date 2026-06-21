@@ -237,9 +237,12 @@ foreach ($messages as $msg) {
 $this->assertStringContainsString('น้องเวบยังไม่ค่อยเข้าใจ', $messages[0]->getText());
 ```
 
-**testConversationNotResumedAcrossInstancesWithIsolatedCache** → fallback message ใหม่:
+**testConversationNotResumedAcrossInstancesWithIsolatedCache** → เปลี่ยนทั้งหมดเพราะ index shift:
 ```php
-$this->assertStringContainsString('น้องเวบยังไม่ค่อยเข้าใจ', $messages[1]->getText());
+$this->assertCount(3, $messages);
+$this->assertStringContainsString('ดีใจที่ได้รู้จัก', $messages[0]->getText());
+$this->assertStringContainsString('ชื่อ', $messages[1]->getText());
+$this->assertStringContainsString('น้องเวบยังไม่ค่อยเข้าใจ', $messages[2]->getText());
 ```
 
 **testConversationResumedAcrossInstancesWithSharedCache** → assertion เปลี่ยนเพราะ extra say():
